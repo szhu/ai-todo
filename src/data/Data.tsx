@@ -211,9 +211,14 @@ export function toText(data: Data): string {
   const lines: string[] = [];
 
   for (const group of groups) {
-    lines.push(group.id + " " + (group.title || "Untitled Group"));
+    lines.push(group.title || "Untitled Group");
     for (const item of getItemsInGroup(data, group.id)) {
-      lines.push("- " + item.id + " " + (item.title || "Untitled Task"));
+      lines.push(
+        "- " +
+          (item.completedAt ? "[x]" : "[x]") +
+          " " +
+          (item.title || "Untitled Task"),
+      );
     }
     lines.push("");
   }
