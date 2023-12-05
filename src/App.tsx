@@ -194,7 +194,7 @@ export function App() {
   return (
     <div
       className={css`
-        padding: 20rem;
+        padding: 20rem 20rem 40rem;
       `}
     >
       <div
@@ -363,7 +363,15 @@ export function App() {
           </div>
         </dialog>
       </div>
-      <h1>{data ? <>Todo List</> : <>Loading&hellip;</>}</h1>
+      <h1>
+        <span
+          className={css`
+            display: inline-block;
+          `}
+        >
+          {data ? <>Todo List</> : <>Loading&hellip;</>}
+        </span>
+      </h1>
       {data && (
         <div>
           {getGroups(data).map((group, groupPosition) => (
@@ -375,6 +383,8 @@ export function App() {
                 padding: 0;
 
                 & > legend {
+                  padding: 0;
+                  margin: 0;
                   font-weight: bold;
                   width: 100%;
                 }
