@@ -11,12 +11,19 @@ const SingleLineTextInput = React.forwardRef<
       rows={1}
       {...props}
       className={css`
+        background: none;
+        border: none;
+
         white-space: nowrap;
         resize: none;
 
         scrollbar-width: none;
         &::-webkit-scrollbar {
           display: none;
+        }
+
+        &:focus {
+          outline: none;
         }
 
         ${props.className};

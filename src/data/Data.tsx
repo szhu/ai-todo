@@ -3,7 +3,7 @@ export type Id = string & { type?: "Id" };
 export interface Item {
   id: Id;
   title: string;
-  completedAt: Date | undefined;
+  completedAt: string | undefined;
 }
 
 export interface Group {
@@ -30,7 +30,7 @@ export function createId() {
   const nDigits = 6;
   return Math.floor(Math.random() * 10 ** nDigits)
     .toString()
-    .padStart(nDigits) as Id;
+    .padStart(nDigits, "0") as Id;
 }
 
 function isId(x: unknown): x is Id {
@@ -85,6 +85,16 @@ export function getItem(data: Data, itemId: Id): Item {
   return item;
 }
 
+export function getItemAt(data: Data, groupId: Id, itemPosition: number) {
+  const group = getGroup(data, groupId);
+  if (group == null) throw new Error("Invalid group: " + groupId);
+
+  const itemId = group.itemIds[itemPosition];
+  const item = itemId && data.Item[itemId];
+
+  return item;
+}
+
 export function getItemsInGroup(data: Data, groupId: Id): Item[] {
   const group = getGroup(data, groupId);
   return group.itemIds.map((itemId) => getItem(data, itemId));
@@ -93,6 +103,12 @@ export function getItemsInGroup(data: Data, groupId: Id): Item[] {
 export function getGroup(data: Data, groupId: Id): Group {
   const group = data.Group[groupId];
   if (group == null) throw new Error("Invalid group: " + groupId);
+  return group;
+}
+
+export function getGroupAt(data: Data, groupPosition: number) {
+  const groupId = data.groupIds[groupPosition];
+  const group = groupId && data.Group[groupId];
   return group;
 }
 
@@ -131,7 +147,7 @@ export function removeItemFromAllGroups(data: Data, itemId: Id): Data {
   const Group = { ...data.Group };
   for (const group of Object.values(Group)) {
     const itemIds = group.itemIds.filter((id) => id !== itemId);
-    if (itemIds !== group.itemIds) {
+    if (itemIds.length !== group.itemIds.length) {
       Group[group.id] = { ...group, itemIds };
     }
   }
@@ -173,6 +189,11 @@ export function deleteGroup(data: Data, groupId: Id): Data {
   delete Group[groupId];
   if (Group !== data.Group) {
     data = { ...data, Group };
+  }
+
+  const groupIds = data.groupIds.filter((id) => id !== groupId);
+  if (groupIds.length !== data.groupIds.length) {
+    data = { ...data, groupIds };
   }
 
   return data;
