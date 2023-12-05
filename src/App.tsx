@@ -46,14 +46,22 @@ function cursorLocationMatches(
   );
 }
 
-function makeAiTidyMessageText(data: Data): string {
+function getAiTidyInstructions(data: Data): string {
   const hasNewItems = getGroups(data).some((group) => {
     group.title.trim() === "" && group.itemIds.length > 0;
   });
 
+  return hasNewItems
+    ? "Move each new task into a new or existing group. Tasks should be grouped based on which tasks can be easily done together without extra context switching or physical relocation."
+    : "Take items from the large groups and move them to the smaller groups.";
+}
+
+function makeAiMessageText(data: Data, instructions: string): string {
   return `We will organize some to-do lists.
 
-Example 1 input:
+Here is the format to follow:
+
+Example input:
 
 100001 Fruits
 - 100002 Apples
@@ -69,7 +77,10 @@ Here are new items for you to categorize:
 - 100009 Mosquitoes
 - 100010 Starfish
 
-Example 1 output:
+Instructions: Categorize the new items into the existing groups. If there are no existing groups that fit, create a new group.
+
+
+Example output:
 
 New tasks to put into 100004 Vertebrates
 - 100009 Birds
@@ -82,20 +93,17 @@ New tasks to put into [new] Invertebrates
 IMPORTANT: Note that “Fruits” is NOT in the output. This is intentional.
 
 
-Example 2 input:
+Real input:
 
 ${toInstructText(data)}
 
-What to do: ${
-    hasNewItems
-      ? "Move each new task into a new or existing group. Tasks should be grouped based on which tasks can be easily done together without extra context switching or physical relocation."
-      : "Take items from the large groups and move them to the smaller groups."
-  }
+Instructions: ${instructions}
 
-Let me know what the example 2’s output should be.`;
+
+Let me know what the output should be.`;
 }
 
-function applyAiTidy(data: Data, response: string) {
+function applyAiAction(data: Data, response: string) {
   const lines = response.split(/\s*\n\s*/g);
   let currentGroup: Group | undefined = undefined;
   for (const line of lines) {
@@ -518,16 +526,38 @@ export function App() {
           <button
             disabled={openaiToken == null}
             onClick={async () => {
-              const request = makeAiTidyMessageText(data);
+              const instructions = getAiTidyInstructions(data);
+              const request = makeAiMessageText(data, instructions);
               console.log(request);
               const response = await getChatCompletion(request);
               console.log(response);
               setAndSaveData((currentData) => {
-                return applyAiTidy(currentData, response);
+                return applyAiAction(currentData, response);
               });
             }}
           >
-            🪄 AI Organize
+            ✨ AI Organize
+          </button>
+          <button
+            disabled={openaiToken == null}
+            onClick={async () => {
+              await new Promise(requestAnimationFrame);
+              const instructions = prompt(
+                "Enter custom instructions here",
+                "Pick 1-3 tasks and move them into a new group called called 'Todo Today'.",
+              );
+              if (!instructions) return;
+
+              const request = makeAiMessageText(data, instructions);
+              console.log(request);
+              const response = await getChatCompletion(request);
+              console.log(response);
+              setAndSaveData((currentData) => {
+                return applyAiAction(currentData, response);
+              });
+            }}
+          >
+            ⚡️ AI &hellip;
           </button>
         </div>
       )}
