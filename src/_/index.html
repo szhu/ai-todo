@@ -13,10 +13,13 @@
         height: 100svh;
 
         -webkit-tap-highlight-color: transparent;
+        color-scheme: light dark;
       }
 
       body {
-        font: 14rem sans-serif;
+        font:
+          14rem system-ui,
+          sans-serif;
         margin: 0;
         height: 100%;
       }
@@ -25,6 +28,11 @@
         height: 100%;
         display: flex;
         flex-direction: column;
+      }
+
+      dialog::backdrop {
+        background-color: #88888811;
+        backdrop-filter: blur(1rem);
       }
 
       button,
@@ -48,6 +56,10 @@
         cursor: pointer;
         background: #f8f8f8;
         color: #000000dd;
+        @media (prefers-color-scheme: dark) {
+          background: #222222;
+          color: #ffffffdd;
+        }
       }
 
       button:hover,

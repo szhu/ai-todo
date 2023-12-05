@@ -213,6 +213,7 @@ export function App() {
           float: right;
           display: flex;
           gap: 8rem;
+          margin-bottom: 8rem;
         `}
       >
         {data && (
