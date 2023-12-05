@@ -111,6 +111,9 @@ function applyAiAction(data: Data, response: string) {
       line.match(/New tasks to put into (\d\d\d\d+)\b/)?.[1] as Id;
     if (groupId != null) {
       currentGroup = getGroup(data, groupId);
+      if (currentGroup?.title.startsWith("!")) {
+        currentGroup = undefined;
+      }
       continue;
     }
 
@@ -519,46 +522,64 @@ export function App() {
         <div
           className={css`
             display: flex;
+            flex-direction: column;
             gap: 8rem;
           `}
         >
-          <button onClick={() => addGroup()}>➕ Add Group</button>
-          <button
-            disabled={openaiToken == null}
-            onClick={async () => {
-              const instructions = getAiTidyInstructions(data);
-              const request = makeAiMessageText(data, instructions);
-              console.log(request);
-              const response = await getChatCompletion(request);
-              console.log(response);
-              setAndSaveData((currentData) => {
-                return applyAiAction(currentData, response);
-              });
-            }}
+          <div
+            className={css`
+              display: flex;
+              gap: 8rem;
+            `}
           >
-            ✨ AI Organize
-          </button>
-          <button
-            disabled={openaiToken == null}
-            onClick={async () => {
-              await new Promise(requestAnimationFrame);
-              const instructions = prompt(
-                "Enter custom instructions here",
-                "Pick 1-3 tasks and move them into a new group called called 'Todo Today'.",
-              );
-              if (!instructions) return;
+            <button onClick={() => addGroup()}>➕ Add Group</button>
+            <button
+              disabled={openaiToken == null}
+              onClick={async () => {
+                const instructions = getAiTidyInstructions(data);
+                const request = makeAiMessageText(data, instructions);
+                console.log(request);
+                const response = await getChatCompletion(request);
+                console.log(response);
+                setAndSaveData((currentData) => {
+                  return applyAiAction(currentData, response);
+                });
+              }}
+            >
+              ✨ AI Organize
+            </button>
+            <button
+              disabled={openaiToken == null}
+              onClick={async () => {
+                await new Promise(requestAnimationFrame);
+                const instructions = prompt(
+                  "Enter custom instructions here",
+                  "Pick 1-3 tasks and move them into a new group called called 'Todo Today'.",
+                );
+                if (!instructions) return;
 
-              const request = makeAiMessageText(data, instructions);
-              console.log(request);
-              const response = await getChatCompletion(request);
-              console.log(response);
-              setAndSaveData((currentData) => {
-                return applyAiAction(currentData, response);
-              });
-            }}
+                const request = makeAiMessageText(data, instructions);
+                console.log(request);
+                const response = await getChatCompletion(request);
+                console.log(response);
+                setAndSaveData((currentData) => {
+                  return applyAiAction(currentData, response);
+                });
+              }}
+            >
+              ⚡️ AI &hellip;
+            </button>
+          </div>
+          <div
+            className={css`
+              font-size: smaller;
+              opacity: 0.8;
+            `}
           >
-            ⚡️ AI &hellip;
-          </button>
+            Tip: Add a ! at the beginning of a task name to prevent it from
+            being moved by AI actions. Add a ! at the beginning of a group name
+            to prevent items from being moved into it.
+          </div>
         </div>
       )}
     </div>

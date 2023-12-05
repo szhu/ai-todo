@@ -236,10 +236,14 @@ export function toInstructText(data: Data): string {
     if (group.title.trim() === "") {
       ungroupedItems.push(...getItemsInGroup(data, group.id));
     } else {
-      lines.push(group.id + " " + (group.title || "Untitled Group"));
+      if (group.title.startsWith("!")) {
+        lines.push(group.title.replace(/^!\s*/, ""));
+      } else {
+        lines.push(group.id + " " + (group.title || "Untitled Group"));
+      }
       for (const item of getItemsInGroup(data, group.id)) {
         if (item.title.startsWith("!")) {
-          lines.push("Note: " + item.title.replace(/^!\s*/, ""));
+          lines.push(item.title.replace(/^!\s*/, ""));
         } else {
           lines.push("- " + item.id + " " + (item.title || "Untitled Task"));
         }
