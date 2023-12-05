@@ -251,18 +251,7 @@ export function App() {
               }[saveState]
             }
           </div>
-          {data && (
-            <button onClick={() => copyToClipboard(toText(data))}>
-              📑 Copy
-            </button>
-          )}
-          <button
-            onClick={() => {
-              window.open(`https://gist.github.com/${gistId}`, "_blank");
-            }}
-          >
-            🌐 View Data
-          </button>
+
           <button
             onClick={(e) => {
               (
@@ -295,6 +284,34 @@ export function App() {
                 gap: 20rem;
               `}
             >
+              <fieldset
+                className={css`
+                  display: flex;
+                  flex-direction: column;
+                  padding: 16rem;
+                  gap: 12rem;
+                `}
+              >
+                <legend
+                  className={css`
+                    font-weight: bold;
+                  `}
+                >
+                  Export Data
+                </legend>
+                {data && (
+                  <button onClick={() => copyToClipboard(toText(data))}>
+                    📑 Copy to Clipboard
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    window.open(`https://gist.github.com/${gistId}`, "_blank");
+                  }}
+                >
+                  🌐 View Data on GitHub
+                </button>
+              </fieldset>
               <fieldset
                 className={css`
                   display: flex;
