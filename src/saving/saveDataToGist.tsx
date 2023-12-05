@@ -8,7 +8,8 @@ export default async function saveDataToGist(
   if (!gistId) return;
 
   await updateGistFile(
-    localStorage.GITHUB_ACCESS_TOKEN,
+    localStorage.GITHUB_ACCESS_TOKEN &&
+      JSON.parse(localStorage.GITHUB_ACCESS_TOKEN),
     gistId,
     "data.json",
     JSON.stringify(data, null, 2),

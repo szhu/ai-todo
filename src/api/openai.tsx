@@ -1,9 +1,12 @@
 export async function getChatCompletion(messageText: string) {
+  const key =
+    localStorage.OPENAI_API_KEY && JSON.parse(localStorage.OPENAI_API_KEY);
+
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: "Bearer " + localStorage.OPENAI_API_KEY,
+      Authorization: "Bearer " + key,
     },
     body: JSON.stringify({
       model: "gpt-3.5-turbo-1106",

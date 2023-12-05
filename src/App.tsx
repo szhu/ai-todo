@@ -1,4 +1,5 @@
 import { css } from "@emotion/css";
+import { useLocalStorage } from "@uidotdev/usehooks";
 import { useEffect, useRef, useState } from "react";
 import { getChatCompletion } from "./api/openai";
 import Data, {
@@ -147,6 +148,8 @@ export function App() {
     loadDataFromGist,
     debouncedSaveDataToGist,
   );
+  const [githubToken, setGithubToken] = useLocalStorage("GITHUB_ACCESS_TOKEN");
+  const [openaiToken, setOpenaiToken] = useLocalStorage("OPENAI_API_KEY");
 
   const nextCursorLocationRef = useRef<CursorLocation | undefined>(undefined);
   function setCursor(
@@ -188,8 +191,6 @@ export function App() {
     loadData();
   }, []);
 
-  if (data == null) return null;
-
   return (
     <div
       className={css`
@@ -203,9 +204,11 @@ export function App() {
           gap: 8rem;
         `}
       >
-        <button onClick={() => copyToClipboard(toText(data))}>
-          📑 Copy All
-        </button>
+        {data && (
+          <button onClick={() => copyToClipboard(toText(data))}>
+            📑 Copy All
+          </button>
+        )}
         <button
           onClick={() => {
             window.open(`https://gist.github.com/${gistId}`, "_blank");
@@ -213,156 +216,311 @@ export function App() {
         >
           🌐 View Data
         </button>
-      </div>
-      <h1>Todo List</h1>
-      <div>
-        {getGroups(data).map((group, groupPosition) => (
-          <fieldset
-            key={group.id}
+        <button
+          onClick={(e) => {
+            (
+              e.currentTarget.nextElementSibling as HTMLDialogElement
+            ).showModal();
+          }}
+        >
+          ⚙️
+        </button>
+        <dialog
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              e.currentTarget.close();
+            }
+          }}
+          className={css`
+            border: none;
+            box-shadow: 0rem 3rem 10rem rgba(0, 0, 0, 0.3);
+            border-radius: 4rem;
+            width: 300rem;
+            padding: 0;
+          `}
+        >
+          <div
             className={css`
-              margin: 20rem 0;
-              border: none;
-              padding: 0;
-
-              & > legend {
-                font-weight: bold;
-                width: 100%;
-              }
+              padding: 20rem;
+              display: flex;
+              flex-direction: column;
+              gap: 20rem;
             `}
           >
-            <legend>
-              <SingleLineTextInput
-                placeholder="Untitled Group"
-                ref={(el) =>
-                  applyCursorLocation(el, "group", group.id, "title")
-                }
-                className={css`
-                  width: 100%;
-                `}
-                value={group.title}
-                onChange={(e) =>
-                  updateGroupTitle(groupPosition, group, e.currentTarget.value)
-                }
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-                    if (!e.shiftKey) {
-                      e.preventDefault();
-                      const delta = e.key === "ArrowUp" ? -1 : 1;
-                      return moveCursorFromGroupTitle(
-                        groupPosition,
-                        group,
-                        delta,
-                      );
-                    }
-                  } else if (e.key === "Backspace") {
-                    if (
-                      (group.title === "" || e.metaKey || e.ctrlKey) &&
-                      group.itemIds.length <= 1
-                    ) {
-                      e.preventDefault();
-                      return removeGroup(groupPosition, group);
-                    }
-                  }
-                }}
-              />
-            </legend>
-            <div
+            <fieldset
               className={css`
                 display: flex;
                 flex-direction: column;
+                padding: 16rem;
+                gap: 12rem;
               `}
             >
-              {getItemsInGroup(data, group.id).map((item, itemPosition) => (
-                <div
-                  key={item.id}
-                  className={css`
-                    display: flex;
-                  `}
+              <legend
+                className={css`
+                  font-weight: bold;
+                `}
+              >
+                GitHub
+              </legend>{" "}
+              <div>Logging in with GitHub lets you save your changes.</div>
+              <div>Changes are saved every 6 secs.</div>
+              {githubToken ? (
+                <button
+                  onClick={async () => {
+                    await new Promise(requestAnimationFrame);
+                    const result = confirm("Log out of GitHub?");
+                    if (result) {
+                      setGithubToken(undefined);
+                    }
+                  }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={item.completedAt != null}
-                    onInput={(e) => e.preventDefault()}
-                    onChange={() => toggleItemCompleted(item)}
-                  />
-                  <SingleLineTextInput
-                    placeholder="Untitled Task"
-                    ref={(el) =>
-                      applyCursorLocation(el, "item", item.id, "title")
-                    }
-                    className={css`
-                      width: 100%;
-                    `}
-                    value={item.title}
-                    onChange={(e) =>
-                      updateItemTitle(
-                        group.id,
-                        itemPosition,
-                        item,
-                        e.currentTarget.value,
-                      )
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-                        if (!e.shiftKey) {
-                          e.preventDefault();
-                          const delta = e.key === "ArrowUp" ? -1 : 1;
-                          return moveCursorFromItemTitle(
-                            groupPosition,
-                            group,
-                            itemPosition,
-                            delta,
-                          );
-                        }
-                      } else if (e.key === "Backspace") {
-                        if (item.title === "" || e.metaKey || e.ctrlKey) {
-                          e.preventDefault();
-                          return removeItem(group, itemPosition, item.id);
-                        }
-                        if (e.currentTarget.selectionEnd === 0) {
-                          e.preventDefault();
-                          return mergeWithPreviousItem(
-                            group,
-                            itemPosition,
-                            item.id,
-                          );
-                        }
-                      } else if (e.key === "Enter") {
-                        if (e.metaKey || e.ctrlKey) {
-                          e.preventDefault();
-                          return toggleItemCompleted(item);
-                        }
+                  🚪 Log Out
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      const dateString = new Date().toLocaleDateString("sv");
+                      window.open(
+                        `https://github.com/settings/tokens/new?description=AI+Todo+${dateString}+&scopes=gist`,
+                        "_blank",
+                      );
+                    }}
+                  >
+                    🔑 Generate Key
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await new Promise(requestAnimationFrame);
+                      const input = prompt("Enter GitHub access token");
+                      if (input) {
+                        setGithubToken(input);
                       }
                     }}
-                  />
-                </div>
-              ))}
-            </div>
-          </fieldset>
-        ))}
+                  >
+                    📝 Enter Generated Key
+                  </button>
+                </>
+              )}
+            </fieldset>
+            <fieldset
+              className={css`
+                display: flex;
+                flex-direction: column;
+                padding: 16rem;
+                gap: 12rem;
+              `}
+            >
+              <legend
+                className={css`
+                  font-weight: bold;
+                `}
+              >
+                OpenAI
+              </legend>
+              <div>
+                Logging in with OpenAI lets you use the <b>AI Organize</b>{" "}
+                button.
+              </div>
+              {openaiToken ? (
+                <button
+                  onClick={async () => {
+                    await new Promise(requestAnimationFrame);
+                    const result = confirm("Log out of OpenAI?");
+                    if (result) {
+                      setOpenaiToken(undefined);
+                    }
+                  }}
+                >
+                  🚪 Log Out
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      window.open(
+                        `https://platform.openai.com/api-keys`,
+                        "_blank",
+                      );
+                    }}
+                  >
+                    🔑 Generate Key
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await new Promise(requestAnimationFrame);
+                      const input = prompt("Enter OpenAI API key");
+                      if (input) {
+                        setOpenaiToken(input);
+                      }
+                    }}
+                  >
+                    📝 Enter Generated Key
+                  </button>
+                </>
+              )}
+            </fieldset>
+          </div>
+        </dialog>
       </div>
+      <h1>{data ? <>Todo List</> : <>Loading&hellip;</>}</h1>
+      {data && (
+        <div>
+          {getGroups(data).map((group, groupPosition) => (
+            <fieldset
+              key={group.id}
+              className={css`
+                margin: 20rem 0;
+                border: none;
+                padding: 0;
 
-      <div
-        className={css`
-          display: flex;
-          gap: 8rem;
-        `}
-      >
-        <button onClick={() => addGroup()}>➕ Add Group</button>
-        <button
-          onClick={async () => {
-            const request = makeAiTidyMessageText(data);
-            console.log(request);
-            const response = await getChatCompletion(request);
-            console.log(response);
-            setAndSaveData((currentData) => {
-              return applyAiTidy(currentData, response);
-            });
-          }}
+                & > legend {
+                  font-weight: bold;
+                  width: 100%;
+                }
+              `}
+            >
+              <legend>
+                <SingleLineTextInput
+                  placeholder="Untitled Group"
+                  ref={(el) =>
+                    applyCursorLocation(el, "group", group.id, "title")
+                  }
+                  className={css`
+                    width: 100%;
+                  `}
+                  value={group.title}
+                  onChange={(e) =>
+                    updateGroupTitle(
+                      groupPosition,
+                      group,
+                      e.currentTarget.value,
+                    )
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                      if (!e.shiftKey) {
+                        e.preventDefault();
+                        const delta = e.key === "ArrowUp" ? -1 : 1;
+                        return moveCursorFromGroupTitle(
+                          groupPosition,
+                          group,
+                          delta,
+                        );
+                      }
+                    } else if (e.key === "Backspace") {
+                      if (
+                        (group.title === "" || e.metaKey || e.ctrlKey) &&
+                        group.itemIds.length <= 1
+                      ) {
+                        e.preventDefault();
+                        return removeGroup(groupPosition, group);
+                      }
+                    }
+                  }}
+                />
+              </legend>
+              <div
+                className={css`
+                  display: flex;
+                  flex-direction: column;
+                `}
+              >
+                {getItemsInGroup(data, group.id).map((item, itemPosition) => (
+                  <div
+                    key={item.id}
+                    className={css`
+                      display: flex;
+                    `}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={item.completedAt != null}
+                      onInput={(e) => e.preventDefault()}
+                      onChange={() => toggleItemCompleted(item)}
+                    />
+                    <SingleLineTextInput
+                      placeholder="Untitled Task"
+                      ref={(el) =>
+                        applyCursorLocation(el, "item", item.id, "title")
+                      }
+                      className={css`
+                        width: 100%;
+                      `}
+                      value={item.title}
+                      onChange={(e) =>
+                        updateItemTitle(
+                          group.id,
+                          itemPosition,
+                          item,
+                          e.currentTarget.value,
+                        )
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                          if (!e.shiftKey) {
+                            e.preventDefault();
+                            const delta = e.key === "ArrowUp" ? -1 : 1;
+                            return moveCursorFromItemTitle(
+                              groupPosition,
+                              group,
+                              itemPosition,
+                              delta,
+                            );
+                          }
+                        } else if (e.key === "Backspace") {
+                          if (item.title === "" || e.metaKey || e.ctrlKey) {
+                            e.preventDefault();
+                            return removeItem(group, itemPosition, item.id);
+                          }
+                          if (e.currentTarget.selectionEnd === 0) {
+                            e.preventDefault();
+                            return mergeWithPreviousItem(
+                              group,
+                              itemPosition,
+                              item.id,
+                            );
+                          }
+                        } else if (e.key === "Enter") {
+                          if (e.metaKey || e.ctrlKey) {
+                            e.preventDefault();
+                            return toggleItemCompleted(item);
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </fieldset>
+          ))}
+        </div>
+      )}
+
+      {data && (
+        <div
+          className={css`
+            display: flex;
+            gap: 8rem;
+          `}
         >
-          🪄 AI Organize
-        </button>
-      </div>
+          <button onClick={() => addGroup()}>➕ Add Group</button>
+          <button
+            disabled={openaiToken == null}
+            onClick={async () => {
+              const request = makeAiTidyMessageText(data);
+              console.log(request);
+              const response = await getChatCompletion(request);
+              console.log(response);
+              setAndSaveData((currentData) => {
+                return applyAiTidy(currentData, response);
+              });
+            }}
+          >
+            🪄 AI Organize
+          </button>
+        </div>
+      )}
     </div>
   );
 
