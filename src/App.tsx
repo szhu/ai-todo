@@ -157,10 +157,20 @@ export function App() {
   const [loadData, setAndSaveData] = useSyncStateWithStorage<Data>(
     setData as React.Dispatch<React.SetStateAction<Data>>,
     loadDataFromGist,
-    debouncedSaveDataToGist,
+    async (data: Data | undefined) => {
+      setSaveState("dirty");
+      await debouncedSaveDataToGist(data, () => {
+        setSaveState("saving");
+      })
+        .then(() => setSaveState("ok"))
+        .catch(() => setSaveState("error"));
+    },
   );
   const [githubToken, setGithubToken] = useLocalStorage("GITHUB_ACCESS_TOKEN");
   const [openaiToken, setOpenaiToken] = useLocalStorage("OPENAI_API_KEY");
+
+  const [saveState, setSaveState] = //
+    useState<"ok" | "dirty" | "saving" | "error">("ok");
 
   const nextCursorLocationRef = useRef<CursorLocation | undefined>(undefined);
   function setCursor(
@@ -203,386 +213,423 @@ export function App() {
   }, []);
 
   return (
-    <div
-      className={css`
-        padding: 20rem 20rem 40rem;
-      `}
-    >
+    <div>
       <div
         className={css`
-          float: right;
-          display: flex;
-          gap: 8rem;
-          margin-bottom: 8rem;
+          padding: 20rem 20rem 10rem;
+          position: sticky;
+          top: 0;
+          background: Canvas;
+          box-shadow: 0 0 2rem rgba(0, 0, 0, 0.3);
         `}
       >
-        {data && (
-          <button onClick={() => copyToClipboard(toText(data))}>
-            📑 Copy All
-          </button>
-        )}
-        <button
-          onClick={() => {
-            window.open(`https://gist.github.com/${gistId}`, "_blank");
-          }}
-        >
-          🌐 View Data
-        </button>
-        <button
-          onClick={(e) => {
-            (
-              e.currentTarget.nextElementSibling as HTMLDialogElement
-            ).showModal();
-          }}
-        >
-          ⚙️
-        </button>
-        <dialog
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              e.currentTarget.close();
-            }
-          }}
+        <div
           className={css`
-            border: none;
-            box-shadow: 0rem 3rem 10rem rgba(0, 0, 0, 0.3);
-            border-radius: 4rem;
-            width: 300rem;
-            padding: 0;
+            float: right;
+            display: flex;
+            align-items: center;
+            gap: 12rem;
+            margin-bottom: 8rem;
+
+            white-space: nowrap;
+            max-width: 100%;
+            overflow: auto hidden;
           `}
         >
           <div
             className={css`
-              padding: 20rem;
-              display: flex;
-              flex-direction: column;
-              gap: 20rem;
+              color: ${saveState === "error" ? "red" : "gray"};
+              font-style: italic;
             `}
           >
-            <fieldset
-              className={css`
-                display: flex;
-                flex-direction: column;
-                padding: 16rem;
-                gap: 12rem;
-              `}
-            >
-              <legend
-                className={css`
-                  font-weight: bold;
-                `}
-              >
-                GitHub
-              </legend>{" "}
-              <div>Logging in with GitHub lets you save your changes.</div>
-              <div>Changes are saved every 6 secs.</div>
-              {githubToken ? (
-                <button
-                  onClick={async () => {
-                    await new Promise(requestAnimationFrame);
-                    const result = confirm("Log out of GitHub?");
-                    if (result) {
-                      setGithubToken(undefined);
-                    }
-                  }}
-                >
-                  🚪 Log Out
-                </button>
-              ) : (
-                <>
-                  <button
-                    onClick={() => {
-                      const dateString = new Date().toLocaleDateString("sv");
-                      window.open(
-                        `https://github.com/settings/tokens/new?description=AI+Todo+${dateString}+&scopes=gist`,
-                        "_blank",
-                      );
-                    }}
-                  >
-                    🔑 Generate Key
-                  </button>
-                  <button
-                    onClick={async () => {
-                      await new Promise(requestAnimationFrame);
-                      const input = prompt("Enter GitHub access token");
-                      if (input) {
-                        setGithubToken(input);
-                      }
-                    }}
-                  >
-                    📝 Enter Generated Key
-                  </button>
-                </>
-              )}
-            </fieldset>
-            <fieldset
-              className={css`
-                display: flex;
-                flex-direction: column;
-                padding: 16rem;
-                gap: 12rem;
-              `}
-            >
-              <legend
-                className={css`
-                  font-weight: bold;
-                `}
-              >
-                OpenAI
-              </legend>
-              <div>
-                Logging in with OpenAI lets you use the <b>AI Organize</b>{" "}
-                button.
-              </div>
-              {openaiToken ? (
-                <button
-                  onClick={async () => {
-                    await new Promise(requestAnimationFrame);
-                    const result = confirm("Log out of OpenAI?");
-                    if (result) {
-                      setOpenaiToken(undefined);
-                    }
-                  }}
-                >
-                  🚪 Log Out
-                </button>
-              ) : (
-                <>
-                  <button
-                    onClick={() => {
-                      window.open(
-                        `https://platform.openai.com/api-keys`,
-                        "_blank",
-                      );
-                    }}
-                  >
-                    🔑 Generate Key
-                  </button>
-                  <button
-                    onClick={async () => {
-                      await new Promise(requestAnimationFrame);
-                      const input = prompt("Enter OpenAI API key");
-                      if (input) {
-                        setOpenaiToken(input);
-                      }
-                    }}
-                  >
-                    📝 Enter Generated Key
-                  </button>
-                </>
-              )}
-            </fieldset>
+            {
+              {
+                ok: <>Saved</>,
+                dirty: <>Not Saved</>,
+                saving: <>Saving&hellip;</>,
+                error: <>Error Saving</>,
+              }[saveState]
+            }
           </div>
-        </dialog>
-      </div>
-      <h1>
-        <span
-          className={css`
-            display: inline-block;
-          `}
-        >
-          {data ? <>Todo List</> : <>Loading&hellip;</>}
-        </span>
-      </h1>
-      {data && (
-        <div>
-          {getGroups(data).map((group, groupPosition) => (
-            <fieldset
-              key={group.id}
+          {data && (
+            <button onClick={() => copyToClipboard(toText(data))}>
+              📑 Copy
+            </button>
+          )}
+          <button
+            onClick={() => {
+              window.open(`https://gist.github.com/${gistId}`, "_blank");
+            }}
+          >
+            🌐 View Data
+          </button>
+          <button
+            onClick={(e) => {
+              (
+                e.currentTarget.nextElementSibling as HTMLDialogElement
+              ).showModal();
+            }}
+          >
+            ⚙️
+          </button>
+          <dialog
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                e.currentTarget.close();
+              }
+            }}
+            className={css`
+              white-space: initial;
+              border: none;
+              box-shadow: 0rem 3rem 10rem rgba(0, 0, 0, 0.3);
+              border-radius: 4rem;
+              width: 300rem;
+              padding: 0;
+            `}
+          >
+            <div
               className={css`
-                margin: 20rem 0;
-                border: none;
-                padding: 0;
-
-                & > legend {
-                  padding: 0;
-                  margin: 0;
-                  font-weight: bold;
-                  width: 100%;
-                }
+                padding: 20rem;
+                display: flex;
+                flex-direction: column;
+                gap: 20rem;
               `}
             >
-              <legend>
-                <SingleLineTextInput
-                  placeholder="Untitled Group"
-                  ref={(el) =>
-                    applyCursorLocation(el, "group", group.id, "title")
-                  }
-                  className={css`
-                    width: 100%;
-                  `}
-                  value={group.title}
-                  onChange={(e) =>
-                    updateGroupTitle(
-                      groupPosition,
-                      group,
-                      e.currentTarget.value,
-                    )
-                  }
-                  onKeyDown={(e) => {
-                    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-                      if (!e.shiftKey) {
-                        e.preventDefault();
-                        const delta = e.key === "ArrowUp" ? -1 : 1;
-                        return moveCursorFromGroupTitle(
-                          groupPosition,
-                          group,
-                          delta,
-                        );
-                      }
-                    } else if (e.key === "Backspace") {
-                      if (
-                        (group.title === "" || e.metaKey || e.ctrlKey) &&
-                        group.itemIds.length <= 1
-                      ) {
-                        e.preventDefault();
-                        return removeGroup(groupPosition, group);
-                      }
-                    }
-                  }}
-                />
-              </legend>
-              <div
+              <fieldset
                 className={css`
                   display: flex;
                   flex-direction: column;
+                  padding: 16rem;
+                  gap: 12rem;
                 `}
               >
-                {getItemsInGroup(data, group.id).map((item, itemPosition) => (
-                  <div
-                    key={item.id}
-                    className={css`
-                      display: flex;
-                    `}
+                <legend
+                  className={css`
+                    font-weight: bold;
+                  `}
+                >
+                  GitHub
+                </legend>{" "}
+                <div>Logging in with GitHub lets you save your changes.</div>
+                <div>Changes are saved every 6 secs.</div>
+                {githubToken ? (
+                  <button
+                    onClick={async () => {
+                      await new Promise(requestAnimationFrame);
+                      const result = confirm("Log out of GitHub?");
+                      if (result) {
+                        setGithubToken(undefined);
+                      }
+                    }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={item.completedAt != null}
-                      onInput={(e) => e.preventDefault()}
-                      onChange={() => toggleItemCompleted(item)}
-                    />
-                    <SingleLineTextInput
-                      placeholder="Untitled Task"
-                      ref={(el) =>
-                        applyCursorLocation(el, "item", item.id, "title")
-                      }
-                      className={css`
-                        width: 100%;
-                      `}
-                      value={item.title}
-                      onChange={(e) =>
-                        updateItemTitle(
-                          group.id,
-                          itemPosition,
-                          item,
-                          e.currentTarget.value,
-                        )
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-                          if (!e.shiftKey) {
-                            e.preventDefault();
-                            const delta = e.key === "ArrowUp" ? -1 : 1;
-                            return moveCursorFromItemTitle(
-                              groupPosition,
-                              group,
-                              itemPosition,
-                              delta,
-                            );
-                          }
-                        } else if (e.key === "Backspace") {
-                          if (item.title === "" || e.metaKey || e.ctrlKey) {
-                            e.preventDefault();
-                            return removeItem(group, itemPosition, item.id);
-                          }
-                          if (e.currentTarget.selectionEnd === 0) {
-                            e.preventDefault();
-                            return mergeWithPreviousItem(
-                              group,
-                              itemPosition,
-                              item.id,
-                            );
-                          }
-                        } else if (e.key === "Enter") {
-                          if (e.metaKey || e.ctrlKey) {
-                            e.preventDefault();
-                            return toggleItemCompleted(item);
-                          }
+                    🚪 Log Out
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => {
+                        const dateString = new Date().toLocaleDateString("sv");
+                        window.open(
+                          `https://github.com/settings/tokens/new?description=AI+Todo+${dateString}+&scopes=gist`,
+                          "_blank",
+                        );
+                      }}
+                    >
+                      🔑 Generate Key
+                    </button>
+                    <button
+                      onClick={async () => {
+                        await new Promise(requestAnimationFrame);
+                        const input = prompt("Enter GitHub access token");
+                        if (input) {
+                          setGithubToken(input);
                         }
                       }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </fieldset>
-          ))}
+                    >
+                      📝 Enter Generated Key
+                    </button>
+                  </>
+                )}
+              </fieldset>
+              <fieldset
+                className={css`
+                  display: flex;
+                  flex-direction: column;
+                  padding: 16rem;
+                  gap: 12rem;
+                `}
+              >
+                <legend
+                  className={css`
+                    font-weight: bold;
+                  `}
+                >
+                  OpenAI
+                </legend>
+                <div>
+                  Logging in with OpenAI lets you use the <b>AI Organize</b>{" "}
+                  button.
+                </div>
+                {openaiToken ? (
+                  <button
+                    onClick={async () => {
+                      await new Promise(requestAnimationFrame);
+                      const result = confirm("Log out of OpenAI?");
+                      if (result) {
+                        setOpenaiToken(undefined);
+                      }
+                    }}
+                  >
+                    🚪 Log Out
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => {
+                        window.open(
+                          `https://platform.openai.com/api-keys`,
+                          "_blank",
+                        );
+                      }}
+                    >
+                      🔑 Generate Key
+                    </button>
+                    <button
+                      onClick={async () => {
+                        await new Promise(requestAnimationFrame);
+                        const input = prompt("Enter OpenAI API key");
+                        if (input) {
+                          setOpenaiToken(input);
+                        }
+                      }}
+                    >
+                      📝 Enter Generated Key
+                    </button>
+                  </>
+                )}
+              </fieldset>
+            </div>
+          </dialog>
         </div>
-      )}
-
-      {data && (
-        <div
+        <h1
           className={css`
-            display: flex;
-            flex-direction: column;
-            gap: 8rem;
+            margin: 0;
           `}
         >
+          <span
+            className={css`
+              display: inline-block;
+            `}
+          >
+            {data ? <>Todo List</> : <>Loading&hellip;</>}
+          </span>
+        </h1>
+      </div>
+      <div
+        className={css`
+          padding: 0rem 20rem 40rem;
+        `}
+      >
+        {data && (
+          <div>
+            {getGroups(data).map((group, groupPosition) => (
+              <fieldset
+                key={group.id}
+                className={css`
+                  margin: 20rem 0;
+                  border: none;
+                  padding: 0;
+
+                  & > legend {
+                    padding: 0;
+                    margin: 0;
+                    font-weight: bold;
+                    width: 100%;
+                  }
+                `}
+              >
+                <legend>
+                  <SingleLineTextInput
+                    placeholder="Untitled Group"
+                    ref={(el) =>
+                      applyCursorLocation(el, "group", group.id, "title")
+                    }
+                    className={css`
+                      width: 100%;
+                    `}
+                    value={group.title}
+                    onChange={(e) =>
+                      updateGroupTitle(
+                        groupPosition,
+                        group,
+                        e.currentTarget.value,
+                      )
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                        if (!e.shiftKey) {
+                          e.preventDefault();
+                          const delta = e.key === "ArrowUp" ? -1 : 1;
+                          return moveCursorFromGroupTitle(
+                            groupPosition,
+                            group,
+                            delta,
+                          );
+                        }
+                      } else if (e.key === "Backspace") {
+                        if (
+                          (group.title === "" || e.metaKey || e.ctrlKey) &&
+                          group.itemIds.length <= 1
+                        ) {
+                          e.preventDefault();
+                          return removeGroup(groupPosition, group);
+                        }
+                      }
+                    }}
+                  />
+                </legend>
+                <div
+                  className={css`
+                    display: flex;
+                    flex-direction: column;
+                  `}
+                >
+                  {getItemsInGroup(data, group.id).map((item, itemPosition) => (
+                    <div
+                      key={item.id}
+                      className={css`
+                        display: flex;
+                      `}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={item.completedAt != null}
+                        onInput={(e) => e.preventDefault()}
+                        onChange={() => toggleItemCompleted(item)}
+                      />
+                      <SingleLineTextInput
+                        placeholder="Untitled Task"
+                        ref={(el) =>
+                          applyCursorLocation(el, "item", item.id, "title")
+                        }
+                        className={css`
+                          width: 100%;
+                        `}
+                        value={item.title}
+                        onChange={(e) =>
+                          updateItemTitle(
+                            group.id,
+                            itemPosition,
+                            item,
+                            e.currentTarget.value,
+                          )
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                            if (!e.shiftKey) {
+                              e.preventDefault();
+                              const delta = e.key === "ArrowUp" ? -1 : 1;
+                              return moveCursorFromItemTitle(
+                                groupPosition,
+                                group,
+                                itemPosition,
+                                delta,
+                              );
+                            }
+                          } else if (e.key === "Backspace") {
+                            if (item.title === "" || e.metaKey || e.ctrlKey) {
+                              e.preventDefault();
+                              return removeItem(group, itemPosition, item.id);
+                            }
+                            if (e.currentTarget.selectionEnd === 0) {
+                              e.preventDefault();
+                              return mergeWithPreviousItem(
+                                group,
+                                itemPosition,
+                                item.id,
+                              );
+                            }
+                          } else if (e.key === "Enter") {
+                            if (e.metaKey || e.ctrlKey) {
+                              e.preventDefault();
+                              return toggleItemCompleted(item);
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </fieldset>
+            ))}
+          </div>
+        )}
+
+        {data && (
           <div
             className={css`
               display: flex;
+              flex-direction: column;
               gap: 8rem;
             `}
           >
-            <button onClick={() => addGroup()}>➕ Add Group</button>
-            <button
-              disabled={openaiToken == null}
-              onClick={async () => {
-                const instructions = getAiTidyInstructions(data);
-                const request = makeAiMessageText(data, instructions);
-                console.log(request);
-                const response = await getChatCompletion(request);
-                console.log(response);
-                setAndSaveData((currentData) => {
-                  return applyAiAction(currentData, response);
-                });
-              }}
+            <div
+              className={css`
+                display: flex;
+                gap: 8rem;
+              `}
             >
-              ✨ AI Organize
-            </button>
-            <button
-              disabled={openaiToken == null}
-              onClick={async () => {
-                await new Promise(requestAnimationFrame);
-                const instructions = prompt(
-                  "Enter custom instructions here",
-                  "Pick 1-3 tasks and move them into a new group called called 'Todo Today'.",
-                );
-                if (!instructions) return;
+              <button onClick={() => addGroup()}>➕ Add Group</button>
+              <button
+                disabled={openaiToken == null}
+                onClick={async () => {
+                  const instructions = getAiTidyInstructions(data);
+                  const request = makeAiMessageText(data, instructions);
+                  console.log(request);
+                  const response = await getChatCompletion(request);
+                  console.log(response);
+                  setAndSaveData((currentData) => {
+                    return applyAiAction(currentData, response);
+                  });
+                }}
+              >
+                ✨ AI Organize
+              </button>
+              <button
+                disabled={openaiToken == null}
+                onClick={async () => {
+                  await new Promise(requestAnimationFrame);
+                  const instructions = prompt(
+                    "Enter custom instructions here",
+                    "Pick 1-3 tasks and move them into a new group called called 'Todo Today'.",
+                  );
+                  if (!instructions) return;
 
-                const request = makeAiMessageText(data, instructions);
-                console.log(request);
-                const response = await getChatCompletion(request);
-                console.log(response);
-                setAndSaveData((currentData) => {
-                  return applyAiAction(currentData, response);
-                });
-              }}
+                  const request = makeAiMessageText(data, instructions);
+                  console.log(request);
+                  const response = await getChatCompletion(request);
+                  console.log(response);
+                  setAndSaveData((currentData) => {
+                    return applyAiAction(currentData, response);
+                  });
+                }}
+              >
+                ⚡️ AI &hellip;
+              </button>
+            </div>
+            <div
+              className={css`
+                font-size: smaller;
+                opacity: 0.8;
+              `}
             >
-              ⚡️ AI &hellip;
-            </button>
+              Tip: Add a ! at the beginning of a task name to prevent it from
+              being moved by AI actions. Add a ! at the beginning of a group
+              name to prevent items from being moved into it.
+            </div>
           </div>
-          <div
-            className={css`
-              font-size: smaller;
-              opacity: 0.8;
-            `}
-          >
-            Tip: Add a ! at the beginning of a task name to prevent it from
-            being moved by AI actions. Add a ! at the beginning of a group name
-            to prevent items from being moved into it.
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 
