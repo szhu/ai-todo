@@ -79,14 +79,13 @@ function insertOrMoveToPosition<T>(
 
 // Actions:
 
-export function getItem(data: Data, itemId: Id): Item {
+export function getItem(data: Data, itemId: Id) {
   const item = data.Item[itemId];
-  if (item == null) throw new Error("Invalid item: " + itemId);
   return item;
 }
 
 export function getItemAt(data: Data, groupId: Id, itemPosition: number) {
-  const group = getGroup(data, groupId);
+  const group = getGroupAssert(data, groupId);
   if (group == null) throw new Error("Invalid group: " + groupId);
 
   const itemId = group.itemIds[itemPosition];
@@ -96,12 +95,20 @@ export function getItemAt(data: Data, groupId: Id, itemPosition: number) {
 }
 
 export function getItemsInGroup(data: Data, groupId: Id): Item[] {
-  const group = getGroup(data, groupId);
-  return group.itemIds.map((itemId) => getItem(data, itemId));
+  const group = getGroupAssert(data, groupId);
+  return group.itemIds.map((itemId) => {
+    const item = getItem(data, itemId);
+    if (item == null) throw new Error("Invalid item: " + itemId);
+    return item;
+  });
 }
 
-export function getGroup(data: Data, groupId: Id): Group {
-  const group = data.Group[groupId];
+export function getGroup(data: Data, groupId: Id) {
+  return data.Group[groupId];
+}
+
+export function getGroupAssert(data: Data, groupId: Id): Group {
+  const group = getGroup(data, groupId);
   if (group == null) throw new Error("Invalid group: " + groupId);
   return group;
 }
@@ -113,7 +120,7 @@ export function getGroupAt(data: Data, groupPosition: number) {
 }
 
 export function getGroups(data: Data): Group[] {
-  return data.groupIds.map((groupId) => getGroup(data, groupId));
+  return data.groupIds.map((groupId) => getGroupAssert(data, groupId));
 }
 
 export function upsertItem(
@@ -132,7 +139,7 @@ export function upsertItem(
   if (groupId != null) {
     data = removeItemFromAllGroups(data, itemId);
 
-    const group = getGroup(data, groupId);
+    const group = getGroupAssert(data, groupId);
     const itemIds = insertOrMoveToPosition(group.itemIds, itemId, position);
     if (itemIds !== group.itemIds) {
       const Group = upsertRecordInDb(data.Group, { ...group, itemIds });
@@ -197,4 +204,52 @@ export function deleteGroup(data: Data, groupId: Id): Data {
   }
 
   return data;
+}
+
+export function toText(data: Data): string {
+  const groups = getGroups(data);
+  const lines: string[] = [];
+
+  for (const group of groups) {
+    lines.push(group.id + " " + (group.title || "Untitled Group"));
+    for (const item of getItemsInGroup(data, group.id)) {
+      lines.push("- " + item.id + " " + (item.title || "Untitled Task"));
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
+export function toInstructText(data: Data): string {
+  const groups = getGroups(data);
+  const lines: string[] = [];
+
+  const ungroupedItems: Item[] = [];
+
+  for (const group of groups) {
+    if (group.title.trim() === "") {
+      ungroupedItems.push(...getItemsInGroup(data, group.id));
+    } else {
+      lines.push(group.id + " " + (group.title || "Untitled Group"));
+      for (const item of getItemsInGroup(data, group.id)) {
+        if (item.title.startsWith("!")) {
+          lines.push("Note: " + item.title.replace(/^!\s*/, ""));
+        } else {
+          lines.push("- " + item.id + " " + (item.title || "Untitled Task"));
+        }
+      }
+      lines.push("");
+    }
+  }
+
+  if (ungroupedItems.length > 0) {
+    lines.push("Here are new items for you to categorize:");
+    for (const item of ungroupedItems) {
+      lines.push("- " + item.id + " " + (item.title || "Untitled Task"));
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n");
 }

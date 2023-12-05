@@ -1,5 +1,5 @@
+import { updateGistFile } from "../api/github";
 import Data from "../data/Data";
-import { updateGistFile } from "../github/api";
 import gistId from "./gistId";
 
 export default async function saveDataToGist(

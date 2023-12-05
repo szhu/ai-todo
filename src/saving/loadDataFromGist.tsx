@@ -1,5 +1,5 @@
+import { getGistFile } from "../api/github";
 import { BlankData } from "../data/Data";
-import { getGistFile } from "../github/api";
 import gistId from "./gistId";
 
 export default async function loadDataFromGist() {

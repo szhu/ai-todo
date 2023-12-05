@@ -1,5 +1,6 @@
 import { css } from "@emotion/css";
 import { useEffect, useRef, useState } from "react";
+import { getChatCompletion } from "./api/openai";
 import Data, {
   Group,
   Id,
@@ -8,17 +9,22 @@ import Data, {
   deleteGroup,
   deleteItem,
   getGroup,
+  getGroupAssert,
   getGroupAt,
   getGroups,
   getItem,
   getItemAt,
   getItemsInGroup,
+  toInstructText,
+  toText,
   upsertGroup,
   upsertItem,
 } from "./data/Data";
 import debouncedSaveDataToGist from "./saving/debouncedSaveDataToGist";
+import gistId from "./saving/gistId";
 import loadDataFromGist from "./saving/loadDataFromGist";
 import useSyncStateWithStorage from "./saving/useSyncStateWithStorage";
+import copyToClipboard from "./util/clipboard/copyToClipboard";
 import SingleLineTextInput from "./visual/SingleLineTextInput";
 
 interface CursorLocation {
@@ -37,6 +43,101 @@ function cursorLocationMatches(
   return Boolean(
     loc && loc.type === type && loc.id === id && loc.field === field,
   );
+}
+
+function makeAiTidyMessageText(data: Data): string {
+  const hasNewItems = getGroups(data).some((group) => {
+    group.title.trim() === "" && group.itemIds.length > 0;
+  });
+
+  return `We will organize some to-do lists.
+
+Example 1 input:
+
+100001 Fruits
+- 100002 Apples
+- 100003 Bananas
+
+100004 Animals
+- 100005 Cats
+- 100006 Dogs
+
+Here are new items for you to categorize:
+- 100008 Spiders
+- 100009 Birds
+- 100009 Mosquitoes
+- 100010 Starfish
+
+Example 1 output:
+
+New tasks to put into 100004 Vertebrates
+- 100009 Birds
+
+New tasks to put into [new] Invertebrates
+- 100008 Spiders
+- 100009 Mosquitoes
+- 100010 Starfish
+
+IMPORTANT: Note that “Fruits” is NOT in the output. This is intentional.
+
+
+Example 2 input:
+
+${toInstructText(data)}
+
+What to do: ${
+    hasNewItems
+      ? "Move each new task into a new or existing group. Tasks should be grouped based on which tasks can be easily done together without extra context switching or physical relocation."
+      : "Take items from the large groups and move them to the smaller groups."
+  }
+
+Let me know what the example 2’s output should be.`;
+}
+
+function applyAiTidy(data: Data, response: string) {
+  const lines = response.split(/\s*\n\s*/g);
+  let currentGroup: Group | undefined = undefined;
+  for (const line of lines) {
+    const groupId = //
+      line.match(/New tasks to put into (\d\d\d\d+)\b/)?.[1] as Id;
+    if (groupId != null) {
+      currentGroup = getGroup(data, groupId);
+      continue;
+    }
+
+    const newGroupName = //
+      line.match(/New tasks to put into \[new\]\s*(.*)/)?.[1];
+    if (newGroupName != null) {
+      const newGroup = {
+        id: createId(),
+        title: newGroupName,
+        itemIds: [],
+      };
+      data = upsertGroup(data, newGroup);
+      currentGroup = newGroup;
+      continue;
+    }
+
+    const itemId = line.match(/- (\d\d\d\d+)\b/)?.[1];
+    if (itemId != null && currentGroup != null) {
+      const item = getItem(data, itemId);
+      if (item && !item.title.startsWith("!")) {
+        data = upsertItem(data, item, currentGroup.id);
+      }
+      continue;
+    }
+
+    currentGroup = undefined;
+  }
+
+  // Remove all empty groups with no title
+  for (const group of getGroups(data)) {
+    if (group.title.trim() === "" && group.itemIds.length === 0) {
+      data = deleteGroup(data, group.id);
+    }
+  }
+
+  return data;
 }
 
 export function App() {
@@ -95,6 +196,24 @@ export function App() {
         padding: 20rem;
       `}
     >
+      <div
+        className={css`
+          float: right;
+          display: flex;
+          gap: 8rem;
+        `}
+      >
+        <button onClick={() => copyToClipboard(toText(data))}>
+          📑 Copy All
+        </button>
+        <button
+          onClick={() => {
+            window.open(`https://gist.github.com/${gistId}`, "_blank");
+          }}
+        >
+          🌐 View Data
+        </button>
+      </div>
       <h1>Todo List</h1>
       <div>
         {getGroups(data).map((group, groupPosition) => (
@@ -222,7 +341,28 @@ export function App() {
           </fieldset>
         ))}
       </div>
-      <button onClick={() => addGroup()}>Add Group</button>
+
+      <div
+        className={css`
+          display: flex;
+          gap: 8rem;
+        `}
+      >
+        <button onClick={() => addGroup()}>➕ Add Group</button>
+        <button
+          onClick={async () => {
+            const request = makeAiTidyMessageText(data);
+            console.log(request);
+            const response = await getChatCompletion(request);
+            console.log(response);
+            setAndSaveData((currentData) => {
+              return applyAiTidy(currentData, response);
+            });
+          }}
+        >
+          🪄 AI Organize
+        </button>
+      </div>
     </div>
   );
 
@@ -315,7 +455,7 @@ export function App() {
     const [groupTitle, ...titlesAfter] = titleLines;
 
     await setAndSaveData((currentData) => {
-      let currentGroup = getGroup(currentData, group.id);
+      let currentGroup = getGroupAssert(currentData, group.id);
       currentData = upsertGroup(currentData, {
         ...currentGroup,
         title: groupTitle ?? "",
