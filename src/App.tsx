@@ -47,13 +47,13 @@ function cursorLocationMatches(
 }
 
 function getAiTidyInstructions(data: Data): string {
-  const hasNewItems = getGroups(data).some((group) => {
-    group.title.trim() === "" && group.itemIds.length > 0;
-  });
+  const hasNewItems = getGroups(data).some(
+    (group) => group.title.trim() === "" && group.itemIds.length > 0,
+  );
 
   return hasNewItems
-    ? "Move each new task into a new or existing group. Tasks should be grouped based on which tasks can be easily done together without extra context switching or physical relocation."
-    : "Take items from the large groups and move them to the smaller groups.";
+    ? "Group these tasks together into groups of 2-4 tasks. Don’t group them based on their purpose, group them based on which ones can be easily done together without extra context switching or physical relocation. Give each group a name, which should be the shared context or location. NOTE THAT YOU MUST STILL FOLLOW THE SAME FORMAT AS THE EXAMPLE."
+    : "Look at the largest group(s). Move some of the tasks from the largest group(s) into existing small groups. If there aren't any small groups, create groups for this purpose.";
 }
 
 function makeAiMessageText(data: Data, instructions: string): string {
@@ -82,10 +82,10 @@ Instructions: Categorize the new items into the existing groups. If there are no
 
 Example output:
 
-New tasks to put into 100004 Vertebrates
+Move these tasks into 100004 Animals // Note: this references an existing group
 - 100009 Birds
 
-New tasks to put into [new] Invertebrates
+Move these tasks into [new] Invertebrates // Note: [new] creates a new group
 - 100008 Spiders
 - 100009 Mosquitoes
 - 100010 Starfish
@@ -108,7 +108,7 @@ function applyAiAction(data: Data, response: string) {
   let currentGroup: Group | undefined = undefined;
   for (const line of lines) {
     const groupId = //
-      line.match(/New tasks to put into (\d\d\d\d+)\b/)?.[1] as Id;
+      line.match(/Move these tasks into (\d\d\d\d+)\b/)?.[1] as Id;
     if (groupId != null) {
       currentGroup = getGroup(data, groupId);
       if (currentGroup?.title.startsWith("!")) {
@@ -118,7 +118,7 @@ function applyAiAction(data: Data, response: string) {
     }
 
     const newGroupName = //
-      line.match(/New tasks to put into \[new\]\s*(.*)/)?.[1];
+      line.match(/Move these tasks into \[new\]\s*(.*)/)?.[1];
     if (newGroupName != null) {
       const newGroup = {
         id: createId(),
