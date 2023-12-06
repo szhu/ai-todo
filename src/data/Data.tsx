@@ -215,7 +215,7 @@ export function toText(data: Data): string {
     for (const item of getItemsInGroup(data, group.id)) {
       lines.push(
         "- " +
-          (item.completedAt ? "[x]" : "[x]") +
+          (item.completedAt ? "[x]" : "[ ]") +
           " " +
           (item.title || "Untitled Task"),
       );
