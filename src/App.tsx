@@ -14,6 +14,7 @@ import Data, {
   getGroupAt,
   getGroups,
   getItem,
+  getItemAssert,
   getItemAt,
   getItemsInGroup,
   toInstructText,
@@ -784,7 +785,7 @@ export function App() {
       for (const title of titlesAfter) {
         if (title.trim() === "" && titlesAfter.length > 1) continue;
 
-        let parsed = smartParseItemTitle(title ?? "");
+        let parsed = smartParseTitle(title ?? "");
 
         if (parsed.type == null) {
           const additionalGroupId = createId();
@@ -801,7 +802,6 @@ export function App() {
             currentData,
             {
               id: additionalItemId,
-              title: "",
               completedAt: undefined,
               ...parsed.fields,
             },
@@ -905,7 +905,7 @@ export function App() {
     itemId: Id,
   ) {
     await setAndSaveData((currentData) => {
-      const currentItem = getItem(currentData, itemId);
+      const currentItem = getItemAssert(currentData, itemId);
       const previousItem = getItemAt(currentData, group.id, itemPosition - 1);
       if (previousItem == null) return currentData;
 
@@ -920,11 +920,12 @@ export function App() {
     });
   }
 
-  function smartParseItemTitle(
+  type ParsedItem = Pick<Item, "title"> | Pick<Item, "title" | "completedAt">;
+  function smartParseTitle(
     title: string,
   ):
     | { type: undefined; fields: { title: string } }
-    | { type: "item"; fields: Partial<Item> } {
+    | { type: "item"; fields: ParsedItem } {
     const originalTitle = title;
     let checked: boolean | undefined = undefined;
 
@@ -945,10 +946,12 @@ export function App() {
       originalTitle !== title ||
       checked != null
     ) {
-      const fields: Partial<Item> = { title };
-      if (checked != null) {
-        fields.completedAt = checked ? new Date().toJSON() : undefined;
-      }
+      let fields: ParsedItem = {
+        title,
+        ...(checked != null
+          ? { completedAt: checked ? new Date().toJSON() : undefined }
+          : {}),
+      };
 
       return {
         type: "item",
@@ -980,8 +983,8 @@ export function App() {
 
     await setAndSaveData((currentData) => {
       currentData = upsertItem(currentData, {
-        ...getItem(currentData, item.id),
-        ...smartParseItemTitle(currentTitle ?? "").fields,
+        ...getItemAssert(currentData, item.id),
+        ...smartParseTitle(currentTitle ?? "").fields,
       });
 
       let additionalItemPosition = itemPosition + 1;
@@ -991,9 +994,8 @@ export function App() {
           currentData,
           {
             id: additionalItemId,
-            title: "",
             completedAt: undefined,
-            ...smartParseItemTitle(additionalTitle ?? "").fields,
+            ...smartParseTitle(additionalTitle ?? "").fields,
           },
           groupId,
           additionalItemPosition++,
@@ -1008,9 +1010,8 @@ export function App() {
 
   function toggleItemCompleted(item: Item) {
     setAndSaveData((currentData) => {
-      const currentItem = getItem(currentData, item.id);
       return upsertItem(currentData, {
-        ...currentItem,
+        ...getItemAssert(currentData, item.id),
         completedAt: item.completedAt ? undefined : new Date().toJSON(),
       });
     });

@@ -84,6 +84,12 @@ export function getItem(data: Data, itemId: Id) {
   return item;
 }
 
+export function getItemAssert(data: Data, itemId: Id): Item {
+  const item = getItem(data, itemId);
+  if (item == null) throw new Error("Invalid item: " + itemId);
+  return item;
+}
+
 export function getItemAt(data: Data, groupId: Id, itemPosition: number) {
   const group = getGroupAssert(data, groupId);
   if (group == null) throw new Error("Invalid group: " + groupId);
