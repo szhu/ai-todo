@@ -1,4 +1,4 @@
-import { css } from "@emotion/css";
+import { css, cx, keyframes } from "@emotion/css";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { useEffect, useRef, useState } from "react";
 import { getChatCompletion } from "./api/openai";
@@ -28,6 +28,20 @@ import loadDataFromGist from "./saving/loadDataFromGist";
 import useSyncStateWithStorage from "./saving/useSyncStateWithStorage";
 import copyToClipboard from "./util/clipboard/copyToClipboard";
 import SingleLineTextInput from "./visual/SingleLineTextInput";
+
+const highlight = keyframes`
+  0% {
+    background: #ffea0080;
+  }
+
+  5% {
+    background: #ffea0021;
+  }
+
+  100% {
+    background: transparent;
+  }
+`;
 
 interface CursorLocation {
   type: "group" | "item";
@@ -110,6 +124,8 @@ Let me know what the output should be.`;
 }
 
 function applyAiAction(data: Data, response: string) {
+  const updatedIds = new Set<Id>();
+
   const lines = response.split(/\s*\n\s*/g);
   let currentGroup: Group | undefined = undefined;
   for (const line of lines) {
@@ -126,6 +142,7 @@ function applyAiAction(data: Data, response: string) {
             ...currentGroup,
             title: newGroupTitle,
           });
+          updatedIds.add(currentGroup.id);
         }
       }
       continue;
@@ -141,6 +158,7 @@ function applyAiAction(data: Data, response: string) {
       };
       data = upsertGroup(data, newGroup);
       currentGroup = newGroup;
+      updatedIds.add(newGroup.id);
       continue;
     }
 
@@ -149,6 +167,7 @@ function applyAiAction(data: Data, response: string) {
       const item = getItem(data, itemId);
       if (item && !item.title.startsWith("!")) {
         data = upsertItem(data, item, currentGroup.id);
+        updatedIds.add(itemId);
       }
       continue;
     }
@@ -163,7 +182,7 @@ function applyAiAction(data: Data, response: string) {
     }
   }
 
-  return data;
+  return [data, updatedIds] as const;
 }
 
 export function App() {
@@ -180,6 +199,7 @@ export function App() {
         .catch(() => setSaveState("error"));
     },
   );
+  const [updatedIds, setUpdatedItemIds] = useState<Set<Id>>(new Set());
   const [githubToken, setGithubToken] = useLocalStorage("GITHUB_ACCESS_TOKEN");
   const [openaiToken, setOpenaiToken] = useLocalStorage("OPENAI_API_KEY");
 
@@ -232,6 +252,7 @@ export function App() {
         className={css`
           padding: 20rem 20rem 10rem;
           position: sticky;
+          z-index: 1;
           top: 0;
           background: Canvas;
           box-shadow: 0 0 2rem rgba(0, 0, 0, 0.3);
@@ -479,7 +500,14 @@ export function App() {
                   }
                 `}
               >
-                <legend>
+                <legend
+                  className={cx(
+                    updatedIds.has(group.id) &&
+                      css`
+                        animation: ${highlight} 100s ease-in;
+                      `,
+                  )}
+                >
                   <SingleLineTextInput
                     placeholder="Untitled Group"
                     ref={(el) =>
@@ -528,9 +556,15 @@ export function App() {
                   {getItemsInGroup(data, group.id).map((item, itemPosition) => (
                     <div
                       key={item.id}
-                      className={css`
-                        display: flex;
-                      `}
+                      className={cx(
+                        css`
+                          display: flex;
+                        `,
+                        updatedIds.has(item.id) &&
+                          css`
+                            animation: ${highlight} 100s ease-in;
+                          `,
+                      )}
                     >
                       <input
                         type="checkbox"
@@ -629,7 +663,12 @@ export function App() {
                   const response = await getChatCompletion(request);
                   console.log(response);
                   setAndSaveData((currentData) => {
-                    return applyAiAction(currentData, response);
+                    const [newData, updatedItemIds] = applyAiAction(
+                      currentData,
+                      response,
+                    );
+                    setUpdatedItemIds(updatedItemIds);
+                    return newData;
                   });
                 }}
               >
@@ -650,7 +689,12 @@ export function App() {
                   const response = await getChatCompletion(request);
                   console.log(response);
                   setAndSaveData((currentData) => {
-                    return applyAiAction(currentData, response);
+                    const [newData, updatedItemIds] = applyAiAction(
+                      currentData,
+                      response,
+                    );
+                    setUpdatedItemIds(updatedItemIds);
+                    return newData;
                   });
                 }}
               >
