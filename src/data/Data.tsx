@@ -241,19 +241,23 @@ export function toInstructText(data: Data): string {
       } else {
         lines.push(group.id + " " + (group.title || "Untitled Group"));
       }
-      for (const item of getItemsInGroup(data, group.id)) {
+      const items = getItemsInGroup(data, group.id);
+      for (const item of items) {
         if (item.title.startsWith("!")) {
           lines.push(item.title.replace(/^!\s*/, ""));
         } else {
           lines.push("- " + item.id + " " + (item.title || "Untitled Task"));
         }
       }
+      if (items.length === 0) {
+        lines.push("(No tasks here yet.)");
+      }
       lines.push("");
     }
   }
 
   if (ungroupedItems.length > 0) {
-    lines.push("Here are new items for you to categorize:");
+    lines.push("Here are new tasks for you to categorize:");
     for (const item of ungroupedItems) {
       lines.push("- " + item.id + " " + (item.title || "Untitled Task"));
     }

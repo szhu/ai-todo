@@ -53,13 +53,14 @@ function getAiTidyInstructions(data: Data): string {
 
   return hasNewItems
     ? "Group these tasks together into groups of 2-4 tasks. Don’t group them based on their purpose, group them based on which ones can be easily done together without extra context switching or physical relocation. Give each group a name, which should be the shared context or location. NOTE THAT YOU MUST STILL FOLLOW THE SAME FORMAT AS THE EXAMPLE."
-    : "Look at the largest group(s). Move some of the tasks from the largest group(s) into existing small groups. If there aren't any small groups, create groups for this purpose.";
+    : "Look at the largest group(s). Move some of the tasks from the largest group(s) into existing small groups. If there aren't any small groups, create groups for this purpose. Don’t group tasks based on their purpose, group them based on which ones can be easily done together without extra context switching or physical relocation.";
 }
 
 function makeAiMessageText(data: Data, instructions: string): string {
   return `We will organize some to-do lists.
 
 Here is the format to follow:
+
 
 Example input:
 
@@ -71,33 +72,37 @@ Example input:
 - 100005 Cats
 - 100006 Dogs
 
-Here are new items for you to categorize:
+Here are new tasks for you to categorize:
 - 100008 Spiders
 - 100009 Birds
 - 100009 Mosquitoes
 - 100010 Starfish
 
-Instructions: Categorize the new items into the existing groups. If there are no existing groups that fit, create a new group.
+Instructions: Categorize the new tasks into the existing categories. If there are no existing category that fit, create a new one.
 
 
 Example output:
 
-Move these tasks into 100004 Animals // Note: this references an existing group
+Move these tasks into 100004 Vertebrates
 - 100009 Birds
 
-Move these tasks into [new] Invertebrates // Note: [new] creates a new group
+Create a new category called “Invertebrates”
 - 100008 Spiders
 - 100009 Mosquitoes
 - 100010 Starfish
 
-IMPORTANT: Note that “Fruits” is NOT in the output. This is intentional.
+
+IMPORTANT NOTES:
+- We renamed the category “Animals” to “Vertebrates” by referencing the same ID.
+- “Fruits” is NOT in the output because it didn't change.
+- Move these tasks” and “Create a new category” are the only valid instructions. Everything else will cause the entire output to be ignored.
 
 
 Real input:
 
 ${toInstructText(data)}
 
-Instructions: ${instructions}
+Instructions: ${instructions}. Don't create categories larger than 4 tasks.
 
 
 Let me know what the output should be.`;
@@ -107,18 +112,26 @@ function applyAiAction(data: Data, response: string) {
   const lines = response.split(/\s*\n\s*/g);
   let currentGroup: Group | undefined = undefined;
   for (const line of lines) {
-    const groupId = //
-      line.match(/Move these tasks into (\d\d\d\d+)\b/)?.[1] as Id;
-    if (groupId != null) {
-      currentGroup = getGroup(data, groupId);
-      if (currentGroup?.title.startsWith("!")) {
-        currentGroup = undefined;
+    const groupIdAndNewGroupNameMatch = //
+      line.match(/Move these tasks into (\d\d\d\d+)\s+(.*)/);
+    if (groupIdAndNewGroupNameMatch != null) {
+      const [, groupId, newGroupTitle] = groupIdAndNewGroupNameMatch;
+      currentGroup = getGroup(data, groupId as Id);
+      if (currentGroup) {
+        if (currentGroup.title.startsWith("!")) {
+          currentGroup = undefined;
+        } else if (newGroupTitle && currentGroup.title !== newGroupTitle) {
+          data = upsertGroup(data, {
+            ...currentGroup,
+            title: newGroupTitle,
+          });
+        }
       }
       continue;
     }
 
     const newGroupName = //
-      line.match(/Move these tasks into \[new\]\s*(.*)/)?.[1];
+      line.match(/Create a new category called\s+[“"]?(.*?)[”"]?$/)?.[1];
     if (newGroupName != null) {
       const newGroup = {
         id: createId(),
