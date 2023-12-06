@@ -155,9 +155,9 @@ function applyAiAction(data: Data, response: string) {
     currentGroup = undefined;
   }
 
-  // Remove all empty groups with no title
+  // Remove all empty groups
   for (const group of getGroups(data)) {
-    if (group.title.trim() === "" && group.itemIds.length === 0) {
+    if (/*group.title.trim() === "" &&*/ group.itemIds.length === 0) {
       data = deleteGroup(data, group.id);
     }
   }
@@ -567,7 +567,16 @@ export function App() {
                               );
                             }
                           } else if (e.key === "Backspace") {
-                            if (item.title === "" || e.metaKey || e.ctrlKey) {
+                            const isEntirelySelected =
+                              e.currentTarget.selectionStart === 0 &&
+                              e.currentTarget.selectionEnd ===
+                                e.currentTarget.value.length;
+                            if (
+                              item.title === "" ||
+                              isEntirelySelected ||
+                              e.metaKey ||
+                              e.ctrlKey
+                            ) {
                               e.preventDefault();
                               return removeItem(group, itemPosition, item.id);
                             }
