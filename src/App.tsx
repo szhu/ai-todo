@@ -419,8 +419,7 @@ export function App() {
                   OpenAI
                 </legend>
                 <div>
-                  Logging in with OpenAI lets you use the <b>AI Organize</b>{" "}
-                  button.
+                  Logging in with OpenAI lets you use the AI action buttons.
                 </div>
                 {openaiToken ? (
                   <button
