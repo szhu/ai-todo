@@ -559,6 +559,10 @@ export function App() {
                       className={cx(
                         css`
                           display: flex;
+
+                          & > * {
+                            opacity: ${item.completedAt ? 0.5 : 1};
+                          }
                         `,
                         updatedIds.has(item.id) &&
                           css`
@@ -579,6 +583,9 @@ export function App() {
                         }
                         className={css`
                           width: 100%;
+                          text-decoration: ${item.completedAt
+                            ? "line-through"
+                            : "none"};
                         `}
                         value={item.title}
                         onChange={(e) =>
