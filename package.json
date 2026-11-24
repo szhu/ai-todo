@@ -1,5 +1,8 @@
 {
   "source": "src/_/index.html",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "start": "lsof -t -i:23406 -sTCP:LISTEN | xargs kill -9; PORT=23406 parcel",
     "build": "parcel build --public-url ."
@@ -19,5 +22,10 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "typescript": "^5.3.2"
+  },
+  "targets": {
+    "default": {
+      "context": "browser"
+    }
   }
 }

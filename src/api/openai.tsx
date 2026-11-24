@@ -9,7 +9,7 @@ export async function getChatCompletion(messageText: string) {
       Authorization: "Bearer " + key,
     },
     body: JSON.stringify({
-      model: "gpt-3.5-turbo-1106",
+      model: "gpt-4.1-mini",
       // response_format: { type: "json_object" },
       messages: [{ role: "user", content: messageText }],
       temperature: 0.7,
